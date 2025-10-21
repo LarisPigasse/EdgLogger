@@ -1,7 +1,7 @@
 // src/controllers/logController.ts
-import { Request, Response } from "express";
-import AzioneLog from "../models/AzioneLog";
-import { computeDiff } from "../utils/diffUtils";
+import { Request, Response } from 'express';
+import AzioneLog, { IAzioneLog } from '../models/azioneLog';
+import { computeDiff } from '../utils/diffUtils';
 
 /**
  * Crea un nuovo log di azione
@@ -25,9 +25,9 @@ export const creaLog = async (req: Request, res: Response): Promise<void> => {
 
     res.status(201).json(nuovoLog);
   } catch (error: any) {
-    console.error("Errore nella creazione del log:", error.message);
+    console.error('Errore nella creazione del log:', error.message);
     res.status(500).json({
-      message: "Errore interno del server",
+      message: 'Errore interno del server',
       error: error.message,
     });
   }
@@ -45,22 +45,22 @@ export const cercaLogs = async (req: Request, res: Response): Promise<void> => {
 
     // Filtro per entità
     if (entita) {
-      query["azione.entita"] = entita;
+      query['azione.entita'] = entita;
     }
 
     // Filtro per tipo di azione
     if (tipoAzione) {
-      query["azione.tipo"] = tipoAzione;
+      query['azione.tipo'] = tipoAzione;
     }
 
     // Filtro per esito
     if (esito) {
-      query["risultato.esito"] = esito;
+      query['risultato.esito'] = esito;
     }
 
     // Filtro per origine
     if (origineId) {
-      query["origine.id"] = origineId;
+      query['origine.id'] = origineId;
     }
 
     // Filtro per intervallo di date
@@ -72,7 +72,7 @@ export const cercaLogs = async (req: Request, res: Response): Promise<void> => {
 
     // Filtro per tag
     if (tags) {
-      const tagList = (tags as string).split(",");
+      const tagList = (tags as string).split(',');
       query.tags = { $in: tagList };
     }
 
@@ -93,9 +93,9 @@ export const cercaLogs = async (req: Request, res: Response): Promise<void> => {
       totalPages: Math.ceil(count / Number(limit)),
     });
   } catch (error: any) {
-    console.error("Errore nel recupero dei log:", error.message);
+    console.error('Errore nel recupero dei log:', error.message);
     res.status(500).json({
-      message: "Errore interno del server",
+      message: 'Errore interno del server',
       error: error.message,
     });
   }
@@ -111,7 +111,7 @@ export const getLog = async (req: Request, res: Response): Promise<void> => {
     const log = await AzioneLog.findById(id);
 
     if (!log) {
-      res.status(404).json({ message: "Log non trovato" });
+      res.status(404).json({ message: 'Log non trovato' });
       return;
     }
 
@@ -119,7 +119,7 @@ export const getLog = async (req: Request, res: Response): Promise<void> => {
   } catch (error: any) {
     console.error(`Errore nel recupero del log ${req.params.id}:`, error.message);
     res.status(500).json({
-      message: "Errore interno del server",
+      message: 'Errore interno del server',
       error: error.message,
     });
   }
@@ -132,27 +132,27 @@ export const getTransazione = async (req: Request, res: Response): Promise<void>
   try {
     const { transazioneId } = req.params;
 
-    const logs = await AzioneLog.find({ "contesto.transazioneId": transazioneId }).sort({ timestamp: 1 });
+    const logs = await AzioneLog.find({ 'contesto.transazioneId': transazioneId }).sort({ timestamp: 1 });
 
     if (logs.length === 0) {
-      res.status(404).json({ message: "Transazione non trovata" });
+      res.status(404).json({ message: 'Transazione non trovata' });
       return;
     }
 
     // Informazioni di base sulla transazione
-    const firstLog = logs.find((log) => log.azione.operazione === "start" && log.azione.entita === "transaction");
+    const firstLog = logs.find(log => log.azione.operazione === 'start' && log.azione.entita === 'transaction');
 
-    const lastLog = logs.find((log) => log.azione.operazione === "end" && log.azione.entita === "transaction");
+    const lastLog = logs.find(log => log.azione.operazione === 'end' && log.azione.entita === 'transaction');
 
     // Determina lo stato della transazione
-    let status = "in_corso";
+    let status = 'in_corso';
     if (lastLog) {
-      status = lastLog.risultato.esito === "successo" ? "completed" : "failed";
+      status = lastLog.risultato.esito === 'successo' ? 'completed' : 'failed';
     }
 
     res.json({
       transazioneId,
-      name: firstLog?.azione.dettagli?.name || "Transazione",
+      name: firstLog?.azione.dettagli?.name || 'Transazione',
       status,
       startTimestamp: firstLog?.timestamp || null,
       endTimestamp: lastLog?.timestamp || null,
@@ -161,7 +161,7 @@ export const getTransazione = async (req: Request, res: Response): Promise<void>
   } catch (error: any) {
     console.error(`Errore nel recupero della transazione ${req.params.transazioneId}:`, error.message);
     res.status(500).json({
-      message: "Errore interno del server",
+      message: 'Errore interno del server',
       error: error.message,
     });
   }
@@ -187,7 +187,7 @@ export const getStatistiche = async (req: Request, res: Response): Promise<void>
       },
       {
         $group: {
-          _id: "$azione.tipo",
+          _id: '$azione.tipo',
           count: { $sum: 1 },
         },
       },
@@ -205,7 +205,7 @@ export const getStatistiche = async (req: Request, res: Response): Promise<void>
       },
       {
         $group: {
-          _id: "$azione.entita",
+          _id: '$azione.entita',
           count: { $sum: 1 },
         },
       },
@@ -226,7 +226,7 @@ export const getStatistiche = async (req: Request, res: Response): Promise<void>
       },
       {
         $group: {
-          _id: "$risultato.esito",
+          _id: '$risultato.esito',
           count: { $sum: 1 },
         },
       },
@@ -241,7 +241,7 @@ export const getStatistiche = async (req: Request, res: Response): Promise<void>
       },
       {
         $group: {
-          _id: "$origine.id",
+          _id: '$origine.id',
           count: { $sum: 1 },
         },
       },
@@ -267,18 +267,18 @@ export const getStatistiche = async (req: Request, res: Response): Promise<void>
         totalLogs: await AzioneLog.countDocuments({ timestamp: { $gte: startDate } }),
         successCount: await AzioneLog.countDocuments({
           timestamp: { $gte: startDate },
-          "risultato.esito": "successo",
+          'risultato.esito': 'successo',
         }),
         failedCount: await AzioneLog.countDocuments({
           timestamp: { $gte: startDate },
-          "risultato.esito": "fallito",
+          'risultato.esito': 'fallito',
         }),
       },
     });
   } catch (error: any) {
-    console.error("Errore nel recupero delle statistiche:", error.message);
+    console.error('Errore nel recupero delle statistiche:', error.message);
     res.status(500).json({
-      message: "Errore interno del server",
+      message: 'Errore interno del server',
       error: error.message,
     });
   }
