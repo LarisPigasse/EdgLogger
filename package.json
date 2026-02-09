@@ -9,7 +9,8 @@
     "build": "tsc",
     "lint": "eslint . --ext .ts",
     "test": "jest",
-    "test:api": "ts-node src/scripts/testApi.ts"
+    "test:api": "ts-node src/scripts/testApi.ts",
+    "test:events": "ts-node src/scripts/testStandardizedEvents.ts"
   },
   "repository": {
     "type": "git",
