@@ -7,9 +7,9 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
 
 ---
 
-## [1.1.0] - 2025-02-09
+## [1.1.0] - 2026-02-09
 
-### 🎉 Added - Eventi Standardizzati (FASE 1)
+### 🎉 Added - Eventi Standardizzati + Client Library (FASE 1 + 2A)
 
 #### Nuove Funzionalità
 - **Sistema categorie eventi standardizzate** con 6 categorie principali:
@@ -39,14 +39,44 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
   - `findCriticalEvents()` - Query eventi critici
   - `getStatsByCategory()` - Statistiche aggregate
 
-#### Nuovi File
+#### Client Library Integrato
+- **LogClient HTTP** - Client per inviare log ai microservizi
+  - Retry automatico su failure (configurabile)
+  - Offline queue in-memory (max 1000 eventi)
+  - Health check del log-service
+  - Type-safe con TypeScript
+
+- **Event Builder Client-Side** - API fluent riutilizzabile
+  - Builder AUTH per eventi autenticazione
+  - Builder DATA per eventi CRUD
+  - Generazione automatica campi legacy
+
+- **Express Middleware** - Auto-logging richieste HTTP
+  - Configurazione filtri path/metodi
+  - Estrazione automatica userId
+  - Metadata custom per richiesta
+  - Logging asincrono (non blocca response)
+
+- **Offline Queue** - Resilienza a downtime log-service
+  - Buffer FIFO in-memory
+  - Auto-flush ogni 10 secondi
+  - Retry su eventi falliti
+
+#### Nuovi File Server
 - `src/types/eventCategories.ts` - Definizioni tipi TypeScript (415 righe)
 - `src/utils/eventValidator.ts` - Sistema validazione (360 righe)
-- `src/utils/eventBuilder.ts` - Builder API fluent (550 righe)
+- `src/utils/eventBuilder.ts` - Builder API server-side (550 righe)
 - `src/scripts/testStandardizedEvents.ts` - Test suite (600 righe)
 - `EVENTI_STANDARDIZZATI.md` - Documentazione completa
 - `FASE1_COMPLETATA.md` - Riepilogo implementazione
-- `CHANGELOG.md` - Questo file
+
+#### Nuovi File Client
+- `src/client/index.ts` - Export principale client library
+- `src/client/LogClient.ts` - HTTP client con retry (150 righe)
+- `src/client/EventBuilder.ts` - Builder client-side (200 righe)
+- `src/client/types.ts` - Types client + re-export server
+- `src/client/queue/OfflineQueue.ts` - Queue offline (120 righe)
+- `src/client/middleware/expressLogger.ts` - Middleware Express (100 righe)
 
 #### Modifiche File Esistenti
 - **src/models/azioneLog.ts**
@@ -56,6 +86,10 @@ e questo progetto aderisce al [Semantic Versioning](https://semver.org/lang/it/)
   - Retrocompatibilità 100% mantenuta
 
 - **package.json**
+  - Nome: `edglogger` → `@edg/log-service`
+  - Versione: `1.0.0` → `1.1.0`
+  - Aggiunta dipendenza: `axios` ^1.6.0 (per client HTTP)
+  - Aggiunto export: `"./client"` per import client library
   - Aggiunto script: `"test:events": "ts-node src/scripts/testStandardizedEvents.ts"`
 
 ### 🔧 Changed
