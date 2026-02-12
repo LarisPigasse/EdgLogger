@@ -7,9 +7,9 @@ const router = express.Router();
 
 // Endpoint per i log
 router.post("/azione", apiKeyAuth, logController.creaLog);
-router.get("/azioni", apiKeyAuth, logController.cercaLogs);
-router.get("/azioni/:id", apiKeyAuth, logController.getLog);
+router.get("/azioni", logController.cercaLogs); // Rimosso apiKeyAuth per dashboard
+router.get("/azioni/:id", logController.getLog); // Rimosso apiKeyAuth per dashboard
 router.get("/transazioni/:transazioneId", apiKeyAuth, logController.getTransazione);
-router.get("/statistiche", apiKeyAuth, logController.getStatistiche);
+router.get("/statistiche", logController.getStatistiche); // Rimosso apiKeyAuth per dashboard
 
 export default router;

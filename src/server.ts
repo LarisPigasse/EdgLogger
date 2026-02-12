@@ -17,7 +17,7 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-// Rotta di base
+// Routes
 app.use("/api/log", logRoutes);
 app.get("/", (req, res) => {
   res.json({ message: "EdgLogger API" });
