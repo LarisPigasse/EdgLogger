@@ -4,18 +4,44 @@ import AzioneLog, { IAzioneLog } from '../models/azioneLog';
 import { computeDiff } from '../utils/diffUtils';
 
 /**
+ * Helper: costruisce la query MongoDB dai filtri comuni
+ * Usato sia da cercaLogs che da getStatistiche per garantire coerenza
+ */
+const buildQuery = (params: Record<string, any>): any => {
+  const query: any = {};
+
+  if (params.categoria) query.categoria = params.categoria;
+  if (params.criticita) query.criticita = params.criticita;
+  if (params.userId) query['origine.id'] = params.userId;
+  if (params.entita) query['azione.entita'] = params.entita;
+  if (params.esito) query['risultato.esito'] = params.esito;
+
+  if (params.startDate || params.endDate) {
+    query.timestamp = {};
+    if (params.startDate) query.timestamp.$gte = new Date(params.startDate as string);
+    if (params.endDate) query.timestamp.$lte = new Date(params.endDate as string);
+  }
+
+  if (params.search) {
+    query.$or = [
+      { 'risultato.messaggio': { $regex: params.search, $options: 'i' } },
+      { 'azione.operazione': { $regex: params.search, $options: 'i' } },
+      { 'azione.entita': { $regex: params.search, $options: 'i' } },
+    ];
+  }
+
+  return query;
+};
+
+/**
  * Crea un nuovo log di azione
  */
 export const creaLog = async (req: Request, res: Response): Promise<void> => {
   try {
     const logData = req.body;
 
-    // Aggiunta del timestamp se non presente
-    if (!logData.timestamp) {
-      logData.timestamp = new Date();
-    }
+    if (!logData.timestamp) logData.timestamp = new Date();
 
-    // Calcola le differenze se sono presenti entrambi gli stati
     if (logData.stato && logData.stato.precedente && logData.stato.nuovo && !logData.stato.diff) {
       logData.stato.diff = computeDiff(logData.stato.precedente, logData.stato.nuovo);
     }
@@ -26,10 +52,7 @@ export const creaLog = async (req: Request, res: Response): Promise<void> => {
     res.status(201).json(nuovoLog);
   } catch (error: any) {
     console.error('Errore nella creazione del log:', error.message);
-    res.status(500).json({
-      message: 'Errore interno del server',
-      error: error.message,
-    });
+    res.status(500).json({ message: 'Errore interno del server', error: error.message });
   }
 };
 
@@ -38,66 +61,33 @@ export const creaLog = async (req: Request, res: Response): Promise<void> => {
  */
 export const cercaLogs = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { page = 0, limit = 50, entita, tipoAzione, esito, origineId, from, to, tags } = req.query;
+    const { page, skip, limit = 50, ...filterParams } = req.query;
 
-    // Costruisci la query in base ai filtri
-    const query: any = {};
+    const query = buildQuery(filterParams);
 
-    // Filtro per entità
-    if (entita) {
-      query['azione.entita'] = entita;
-    }
+    const skipValue = skip !== undefined
+      ? Number(skip)
+      : (page !== undefined ? Number(page) * Number(limit) : 0);
 
-    // Filtro per tipo di azione
-    if (tipoAzione) {
-      query['azione.tipo'] = tipoAzione;
-    }
-
-    // Filtro per esito
-    if (esito) {
-      query['risultato.esito'] = esito;
-    }
-
-    // Filtro per origine
-    if (origineId) {
-      query['origine.id'] = origineId;
-    }
-
-    // Filtro per intervallo di date
-    if (from || to) {
-      query.timestamp = {};
-      if (from) query.timestamp.$gte = new Date(from as string);
-      if (to) query.timestamp.$lte = new Date(to as string);
-    }
-
-    // Filtro per tag
-    if (tags) {
-      const tagList = (tags as string).split(',');
-      query.tags = { $in: tagList };
-    }
-
-    // Calcola skip per paginazione
-    const skip = Number(page) * Number(limit);
-
-    // Esegui la query
     const [logs, count] = await Promise.all([
-      AzioneLog.find(query).sort({ timestamp: -1 }).skip(skip).limit(Number(limit)),
+      AzioneLog.find(query).sort({ timestamp: -1 }).skip(skipValue).limit(Number(limit)),
       AzioneLog.countDocuments(query),
     ]);
+
+    const currentPage = skip !== undefined
+      ? Math.floor(Number(skip) / Number(limit))
+      : (page !== undefined ? Number(page) : 0);
 
     res.json({
       logs,
       totalCount: count,
-      page: Number(page),
+      page: currentPage,
       limit: Number(limit),
       totalPages: Math.ceil(count / Number(limit)),
     });
   } catch (error: any) {
     console.error('Errore nel recupero dei log:', error.message);
-    res.status(500).json({
-      message: 'Errore interno del server',
-      error: error.message,
-    });
+    res.status(500).json({ message: 'Errore interno del server', error: error.message });
   }
 };
 
@@ -107,7 +97,6 @@ export const cercaLogs = async (req: Request, res: Response): Promise<void> => {
 export const getLog = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-
     const log = await AzioneLog.findById(id);
 
     if (!log) {
@@ -118,10 +107,7 @@ export const getLog = async (req: Request, res: Response): Promise<void> => {
     res.json(log);
   } catch (error: any) {
     console.error(`Errore nel recupero del log ${req.params.id}:`, error.message);
-    res.status(500).json({
-      message: 'Errore interno del server',
-      error: error.message,
-    });
+    res.status(500).json({ message: 'Errore interno del server', error: error.message });
   }
 };
 
@@ -131,7 +117,6 @@ export const getLog = async (req: Request, res: Response): Promise<void> => {
 export const getTransazione = async (req: Request, res: Response): Promise<void> => {
   try {
     const { transazioneId } = req.params;
-
     const logs = await AzioneLog.find({ 'contesto.transazioneId': transazioneId }).sort({ timestamp: 1 });
 
     if (logs.length === 0) {
@@ -139,16 +124,11 @@ export const getTransazione = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Informazioni di base sulla transazione
     const firstLog = logs.find(log => log.azione.operazione === 'start' && log.azione.entita === 'transaction');
-
     const lastLog = logs.find(log => log.azione.operazione === 'end' && log.azione.entita === 'transaction');
 
-    // Determina lo stato della transazione
     let status = 'in_corso';
-    if (lastLog) {
-      status = lastLog.risultato.esito === 'successo' ? 'completed' : 'failed';
-    }
+    if (lastLog) status = lastLog.risultato.esito === 'successo' ? 'completed' : 'failed';
 
     res.json({
       transazioneId,
@@ -160,10 +140,7 @@ export const getTransazione = async (req: Request, res: Response): Promise<void>
     });
   } catch (error: any) {
     console.error(`Errore nel recupero della transazione ${req.params.transazioneId}:`, error.message);
-    res.status(500).json({
-      message: 'Errore interno del server',
-      error: error.message,
-    });
+    res.status(500).json({ message: 'Errore interno del server', error: error.message });
   }
 };
 
@@ -172,114 +149,96 @@ export const getTransazione = async (req: Request, res: Response): Promise<void>
  */
 export const getStatistiche = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { days = 7 } = req.query;
+    const query = buildQuery(req.query);
 
-    // Calcola la data di inizio
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - Number(days));
+    const total = await AzioneLog.countDocuments(query);
 
-    // Statistiche per tipo di azione
-    const actionStats = await AzioneLog.aggregate([
-      {
-        $match: {
-          timestamp: { $gte: startDate },
-        },
-      },
-      {
-        $group: {
-          _id: '$azione.tipo',
-          count: { $sum: 1 },
-        },
-      },
-      {
-        $sort: { count: -1 },
-      },
+    const categoryStats = await AzioneLog.aggregate([
+      { $match: query },
+      { $group: { _id: { $ifNull: ['$categoria', null] }, count: { $sum: 1 } } },
     ]);
 
-    // Statistiche per entità
-    const entityStats = await AzioneLog.aggregate([
-      {
-        $match: {
-          timestamp: { $gte: startDate },
-        },
-      },
-      {
-        $group: {
-          _id: '$azione.entita',
-          count: { $sum: 1 },
-        },
-      },
-      {
-        $sort: { count: -1 },
-      },
-      {
-        $limit: 10,
-      },
+    const byCategory: Record<string, number> = {
+      AUTH: 0, DATA: 0, EMAIL: 0, SYSTEM: 0, AUDIT: 0, SECURITY: 0,
+    };
+    categoryStats.forEach((s) => {
+      if (s._id && s._id in byCategory) byCategory[s._id] = s.count;
+    });
+
+    const severityStats = await AzioneLog.aggregate([
+      { $match: query },
+      { $group: { _id: { $ifNull: ['$criticita', 'INFO'] }, count: { $sum: 1 } } },
     ]);
 
-    // Statistiche per esito
-    const resultStats = await AzioneLog.aggregate([
-      {
-        $match: {
-          timestamp: { $gte: startDate },
-        },
-      },
-      {
-        $group: {
-          _id: '$risultato.esito',
-          count: { $sum: 1 },
-        },
-      },
+    const bySeverity: Record<string, number> = {
+      INFO: 0, WARNING: 0, ERROR: 0, CRITICAL: 0,
+    };
+    severityStats.forEach((s) => {
+      if (s._id in bySeverity) bySeverity[s._id] = s.count;
+    });
+
+    const outcomeStats = await AzioneLog.aggregate([
+      { $match: query },
+      { $group: { _id: '$risultato.esito', count: { $sum: 1 } } },
     ]);
 
-    // Statistiche per origini più attive
-    const originStats = await AzioneLog.aggregate([
-      {
-        $match: {
-          timestamp: { $gte: startDate },
-        },
-      },
-      {
-        $group: {
-          _id: '$origine.id',
-          count: { $sum: 1 },
-        },
-      },
-      {
-        $sort: { count: -1 },
-      },
-      {
-        $limit: 10,
-      },
-    ]);
+    const byOutcome = { successo: 0, fallito: 0, parziale: 0 };
+    outcomeStats.forEach((s) => {
+      if (s._id && s._id in byOutcome) byOutcome[s._id as keyof typeof byOutcome] = s.count;
+    });
+
+    const criticalEvents = await AzioneLog.countDocuments({ ...query, criticita: 'CRITICAL' });
+
+    const oneHourAgo = new Date();
+    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+    const lastHourEvents = await AzioneLog.countDocuments({ ...query, timestamp: { $gte: oneHourAgo } });
+
+    const successRateOverall = total > 0 ? (byOutcome.successo / total) * 100 : 0;
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const queryLast30 = { ...query, timestamp: { $gte: thirtyDaysAgo } };
+
+    const totalLast30 = await AzioneLog.countDocuments(queryLast30);
+    const successLast30 = await AzioneLog.countDocuments({ ...queryLast30, 'risultato.esito': 'successo' });
+    const successRateLast30 = totalLast30 > 0 ? (successLast30 / totalLast30) * 100 : 0;
 
     res.json({
-      period: {
-        days: Number(days),
-        startDate,
-        endDate: new Date(),
-      },
-      actionStats,
-      entityStats,
-      resultStats,
-      originStats,
-      summary: {
-        totalLogs: await AzioneLog.countDocuments({ timestamp: { $gte: startDate } }),
-        successCount: await AzioneLog.countDocuments({
-          timestamp: { $gte: startDate },
-          'risultato.esito': 'successo',
-        }),
-        failedCount: await AzioneLog.countDocuments({
-          timestamp: { $gte: startDate },
-          'risultato.esito': 'fallito',
-        }),
+      total,
+      byCategory,
+      bySeverity,
+      byOutcome,
+      criticalEvents,
+      lastHourEvents,
+      successRate: {
+        overall: successRateOverall,
+        last30Days: successRateLast30,
+        trend: successRateLast30 - successRateOverall,
       },
     });
   } catch (error: any) {
     console.error('Errore nel recupero delle statistiche:', error.message);
-    res.status(500).json({
-      message: 'Errore interno del server',
-      error: error.message,
-    });
+    res.status(500).json({ message: 'Errore interno del server', error: error.message });
+  }
+};
+
+/**
+ * Recupera lista utenti distinti presenti nei log
+ * Usato per popolare la select del filtro utente nel frontend
+ * Restituisce i valori di origine.id ordinati alfabeticamente
+ */
+export const getUtenti = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const utenti = await AzioneLog.distinct('origine.id');
+
+    // Ordina alfabeticamente e filtra valori null/vuoti
+    const utentiOrdinati = utenti
+      .filter((u) => u != null && u !== '')
+      .sort((a, b) => String(a).localeCompare(String(b)));
+
+    res.json(utentiOrdinati);
+  } catch (error: any) {
+    console.error('Errore nel recupero utenti:', error.message);
+    res.status(500).json({ message: 'Errore interno del server', error: error.message });
   }
 };
